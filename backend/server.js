@@ -1,3 +1,5 @@
+// Ignora validação de certificado SSL (apenas para desenvolvimento!)
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";

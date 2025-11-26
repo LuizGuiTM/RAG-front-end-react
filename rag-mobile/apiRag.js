@@ -1,4 +1,4 @@
-const BASE = "http://192.168.15.3:3000"; // IP local do backend
+const BASE = "http://10.1.63.18:3000"; // IP local do backend
 const STREAM_PATH = "/chat";
 const RETURN_PATH = "/api/returnMessage";
 

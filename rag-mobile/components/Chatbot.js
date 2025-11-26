@@ -1,3 +1,30 @@
+// Remove prefixos SSE e limpa resposta para exibir só o texto útil da API
+function cleanSSE(text) {
+  if (!text) return '';
+  // Remove linhas event: e data: [DONE]
+  return text
+    .split(/\r?\n/)
+    .filter(line => line.trim() && !line.startsWith('event:') && !line.includes('[DONE]'))
+    .map(line => line.replace(/^data:\s?/, ''))
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+  // Cancela a transmissão e adiciona mensagem de cancelamento
+  const handleCancel = () => {
+    streamRef.current?.close();
+    setRunning(false);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `b_cancel_${Date.now()}`,
+        role: "assistant",
+        content: "Transmissão cancelada.",
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+    placeholderIdRef.current = null;
+  };
 // Estilos para o markdown
 const markdownStyles = {
   body: { color: '#e6eef8', fontSize: 16 },
@@ -99,73 +126,47 @@ export default function Chatbot() {
         setMessages((prev) => {
           const copy = [...prev];
           const idx = copy.findIndex((m) => m.id === placeholderIdRef.current);
-          if (idx !== -1) {
-            copy[idx] = {
-              ...copy[idx],
-              content: cleanSSE(partial),
-            };
-          }
-          return copy;
-        });
-      },
-      onComplete: (finalText) => {
-        const finalId = placeholderIdRef.current;
-        setMessages((prev) => {
-          const copy = [...prev];
-          const idx = copy.findIndex((m) => m.id === finalId);
-          if (idx !== -1) {
-            copy[idx] = {
-              ...copy[idx],
-              content: cleanSSE(finalText),
-            };
-          }
-          return copy;
-        });
-        placeholderIdRef.current = null;
-        setRunning(false);
-      },
-      // Remove prefixos SSE e limpa resposta para exibir só o texto útil
-      function cleanSSE(text) {
-        if (!text) return '';
-        // Remove linhas event: e data: [DONE]
-        return text
-          .split(/\r?\n/)
-          .filter(line => line.trim() && !line.startsWith('event:') && !line.includes('[DONE]'))
-          .map(line => line.replace(/^data:\s?/, ''))
-          .join(' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-      }
-      onError: (err) => {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `err_${Date.now()}`,
-            role: "assistant",
-            content: `Erro ao obter resposta: ${err?.message || err?.toString() || 'erro desconhecido'}`,
-            createdAt: new Date().toISOString(),
-          },
-        ]);
-        setRunning(false);
-        placeholderIdRef.current = null;
-        if (err) console.error('Erro no Chatbot:', err);
-      },
-    });
-  };
-
-  const handleCancel = () => {
-    streamRef.current?.close();
-    setRunning(false);
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `b_cancel_${Date.now()}`,
-        role: "assistant",
-        content: "Transmissão cancelada.",
-        createdAt: new Date().toISOString(),
-      },
-    ]);
-  };
+            if (idx !== -1) {
+              copy[idx] = {
+                ...copy[idx],
+                content: cleanSSE(partial),
+              };
+            }
+            return copy;
+          });
+        },
+        onComplete: (finalText) => {
+          const finalId = placeholderIdRef.current;
+          setMessages((prev) => {
+            const copy = [...prev];
+            const idx = copy.findIndex((m) => m.id === finalId);
+            if (idx !== -1) {
+              copy[idx] = {
+                ...copy[idx],
+                content: cleanSSE(finalText),
+              };
+            }
+            return copy;
+          });
+          placeholderIdRef.current = null;
+          setRunning(false);
+        },
+        onError: (err) => {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `err_${Date.now()}`,
+              role: "assistant",
+              content: `Erro ao obter resposta: ${err?.message || err?.toString() || 'erro desconhecido'}`,
+              createdAt: new Date().toISOString(),
+            },
+          ]);
+          setRunning(false);
+          placeholderIdRef.current = null;
+          if (err) console.error('Erro no Chatbot:', err);
+        },
+      });
+    };
 
   return (
     <KeyboardAvoidingView
