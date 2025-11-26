@@ -31,47 +31,51 @@ export function streamRag(query, messages = [], { onStart, onChunk, onComplete, 
         signal: controller.signal,
       });
 
-      if (!res.ok || !res.body) {
+      if (!res.ok) {
         onError?.(new Error(`Erro no fetch: ${res.status}`));
         return;
       }
 
       onStart?.();
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
 
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        if (!chunk) continue;
-
-        buffer += chunk;
-        const events = buffer.split(/(?=event:\send)/g);
-        const parts = events[0].split(/(?=data:\s)/g);
-        buffer = events.length > 1 && parts.length ? parts.pop() : "";
-        for (let part of parts) {
-          const dataPayload = part.replace(/^data:\s?/, "");
-          if (!dataPayload || dataPayload.trim() === "[DONE]") continue;
-          const cleanPayload = dataPayload.replace(/\n\n$/, "");
-          assistantMsg += cleanPayload;
-          onChunk?.(assistantMsg);
+      // Tenta usar streaming se disponível
+      if (res.body && typeof res.body.getReader === 'function') {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          if (!chunk) continue;
+          buffer += chunk;
+          const events = buffer.split(/(?=event:\send)/g);
+          const parts = events[0].split(/(?=data:\s)/g);
+          buffer = events.length > 1 && parts.length ? parts.pop() : "";
+          for (let part of parts) {
+            const dataPayload = part.replace(/^data:\s?/, "");
+            if (!dataPayload || dataPayload.trim() === "[DONE]") continue;
+            const cleanPayload = dataPayload.replace(/\n\n$/, "");
+            assistantMsg += cleanPayload;
+            onChunk?.(assistantMsg);
+          }
         }
-      }
-
-      if (buffer.trim()) {
-        const events = buffer.split(/(?=event:\send)/g);
-        const parts = events[0].split(/(?=data:\s)/g);
-        for (let part of parts) {
-          const dataPayload = part.replace(/^data:\s?/, "");
-          if (!dataPayload || dataPayload.trim() === "[DONE]") continue;
-          const cleanPayload = dataPayload.replace(/\n\n$/, "");
-          assistantMsg += cleanPayload;
+        if (buffer.trim()) {
+          const events = buffer.split(/(?=event:\send)/g);
+          const parts = events[0].split(/(?=data:\s)/g);
+          for (let part of parts) {
+            const dataPayload = part.replace(/^data:\s?/, "");
+            if (!dataPayload || dataPayload.trim() === "[DONE]") continue;
+            const cleanPayload = dataPayload.replace(/\n\n$/, "");
+            assistantMsg += cleanPayload;
+          }
         }
+        onComplete?.(assistantMsg);
+      } else {
+        // Fallback: consome resposta como texto completo (para React Native)
+        const text = await res.text();
+        onChunk?.(text);
+        onComplete?.(text);
       }
-
-      onComplete?.(assistantMsg);
     } catch (err) {
       if (err.name !== "AbortError") onError?.(err);
     }

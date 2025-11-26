@@ -102,7 +102,7 @@ export default function Chatbot() {
           if (idx !== -1) {
             copy[idx] = {
               ...copy[idx],
-              content: partial,
+              content: cleanSSE(partial),
             };
           }
           return copy;
@@ -116,7 +116,7 @@ export default function Chatbot() {
           if (idx !== -1) {
             copy[idx] = {
               ...copy[idx],
-              content: finalText,
+              content: cleanSSE(finalText),
             };
           }
           return copy;
@@ -124,18 +124,31 @@ export default function Chatbot() {
         placeholderIdRef.current = null;
         setRunning(false);
       },
-      onError: () => {
+      // Remove prefixos SSE e limpa resposta para exibir só o texto útil
+      function cleanSSE(text) {
+        if (!text) return '';
+        // Remove linhas event: e data: [DONE]
+        return text
+          .split(/\r?\n/)
+          .filter(line => line.trim() && !line.startsWith('event:') && !line.includes('[DONE]'))
+          .map(line => line.replace(/^data:\s?/, ''))
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+      }
+      onError: (err) => {
         setMessages((prev) => [
           ...prev,
           {
             id: `err_${Date.now()}`,
             role: "assistant",
-            content: "Erro ao obter resposta.",
+            content: `Erro ao obter resposta: ${err?.message || err?.toString() || 'erro desconhecido'}`,
             createdAt: new Date().toISOString(),
           },
         ]);
         setRunning(false);
         placeholderIdRef.current = null;
+        if (err) console.error('Erro no Chatbot:', err);
       },
     });
   };
